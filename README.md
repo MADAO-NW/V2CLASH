@@ -17,6 +17,41 @@ Copy-Item .\static\* .\dist\static\ -Recurse -Force
 
 打开 `http://127.0.0.1:7625/`。
 
+## 一键部署（GitHub，一条命令）
+
+说明：脚本会从 GitHub Releases 下载预编译二进制，不需要本地构建，也不需要在服务器安装 Go。
+
+### 发布二进制要求
+
+在 GitHub Releases 中准备以下文件名（Linux）：
+
+- `link2clash_linux_amd64`
+- `link2clash_linux_arm64`
+
+### HTTP（无域名）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/deploy.sh \
+  | env REPO=OWNER/REPO ENABLE_TLS=0 AUTO_REMOVE_DEFAULT=1 bash
+```
+
+### HTTPS（有域名）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/deploy.sh \
+  | env REPO=OWNER/REPO DOMAIN=yourdomain.com ENABLE_TLS=1 AUTO_REMOVE_DEFAULT=1 bash
+```
+
+常用可选参数（环境变量）：
+
+- `VERSION`：默认 `latest`，也可指定 tag。
+- `DOWNLOAD_URL`：直接指定二进制下载地址（覆盖自动拼接）。
+- `APP_DIR`：默认 `/opt/link2clash`。
+- `APP_USER`：默认 `www-data`。
+- `STATIC_REF`：静态文件来源的 git ref，默认自动使用 `main` 或 `VERSION`。
+
+脚本默认适配 Ubuntu/Debian（使用 `apt-get`）。
+
 ## 部署（Windows 编译 + Linux VPS）
 
 检查 VPS 架构：
