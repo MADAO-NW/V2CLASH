@@ -1,0 +1,14 @@
+[Unit]
+Description=link2clash API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/link2clash
+ExecStart=/opt/link2clash/link2clash
+Restart=always
+User=www-data
+Environment=PORT=7625
+
+[Install]
+WantedBy=multi-user.target

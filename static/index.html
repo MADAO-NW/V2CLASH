@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Link2Clash Converter</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="background">
+      <header class="hero">
+        <span class="badge">VLESS + VMESS</span>
+        <h1>Link2Clash</h1>
+        <p>Paste your VLESS or VMESS links and convert them into Clash proxy lines in order.</p>
+      </header>
+
+      <main class="panel">
+        <section class="input-section">
+          <label for="input">Input links</label>
+          <textarea id="input" placeholder="vless://uuid@host:port?encryption=none&#10;vmess://base64payload"></textarea>
+          <div class="actions">
+            <button id="convert">Convert</button>
+            <button id="clear" class="ghost">Clear</button>
+          </div>
+        </section>
+
+        <section class="output-grid">
+          <div class="output">
+            <div class="output-header">
+              <h2>Clash proxies</h2>
+              <button class="ghost small" data-copy="proxies">Copy</button>
+            </div>
+            <textarea id="proxies" readonly></textarea>
+          </div>
+          <div class="output">
+            <div class="output-header">
+              <h2>Proxy group entries</h2>
+              <button class="ghost small" data-copy="groups">Copy</button>
+            </div>
+            <textarea id="groups" readonly></textarea>
+          </div>
+        </section>
+
+        <section id="errors" class="errors hidden">
+          <h3>Issues</h3>
+          <ul id="error-list"></ul>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>API: POST /api/convert</span>
+        <span class="status" id="status" aria-live="polite"></span>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
