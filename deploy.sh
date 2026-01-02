@@ -11,6 +11,8 @@ BINARY_NAME="${BINARY_NAME:-link2clash}"
 DOWNLOAD_URL="${DOWNLOAD_URL:-}"
 APP_USER="${APP_USER:-www-data}"
 AUTO_REMOVE_DEFAULT="${AUTO_REMOVE_DEFAULT:-0}"
+PUBLIC_PORT="${PUBLIC_PORT:-9637}"
+API_PORT="${API_PORT:-7625}"
 
 if [ "$REPO" = "yourname/link2clash" ]; then
   echo "Set REPO=owner/repo before running."
@@ -95,7 +97,7 @@ WorkingDirectory=$APP_DIR
 ExecStart=$APP_DIR/$BINARY_NAME
 Restart=always
 User=$APP_USER
-Environment=PORT=7625
+Environment=PORT=$API_PORT
 
 [Install]
 WantedBy=multi-user.target
@@ -109,9 +111,13 @@ if [ "$AUTO_REMOVE_DEFAULT" -eq 1 ]; then
 fi
 
 SERVER_NAME="${DOMAIN:-_}"
-LISTEN_DIRECTIVE="listen 80;"
+LISTEN_DIRECTIVE="listen ${PUBLIC_PORT};"
 if [ -z "$DOMAIN" ]; then
-  LISTEN_DIRECTIVE="listen 80 default_server;"
+  LISTEN_DIRECTIVE="listen ${PUBLIC_PORT} default_server;"
+fi
+if [ "$ENABLE_TLS" -eq 1 ]; then
+  LISTEN_DIRECTIVE="listen 80;"
+  SERVER_NAME="$DOMAIN"
 fi
 
 $SUDO tee /etc/nginx/sites-available/link2clash.conf > /dev/null <<EOF
@@ -134,7 +140,7 @@ server {
 
     location /api/ {
         limit_req zone=api_rate burst=10 nodelay;
-        proxy_pass http://127.0.0.1:7625;
+        proxy_pass http://127.0.0.1:$API_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -156,11 +162,11 @@ limit_req_zone \$binary_remote_addr zone=api_rate:10m rate=30r/m;
 server {
     listen 80;
     server_name $DOMAIN;
-    return 301 https://\$host\$request_uri;
+    return 301 https://\$host:$PUBLIC_PORT\$request_uri;
 }
 
 server {
-    listen 443 ssl http2;
+    listen $PUBLIC_PORT ssl http2;
     server_name $DOMAIN;
 
     ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
@@ -180,7 +186,7 @@ server {
 
     location /api/ {
         limit_req zone=api_rate burst=10 nodelay;
-        proxy_pass http://127.0.0.1:7625;
+        proxy_pass http://127.0.0.1:$API_PORT;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -191,7 +197,7 @@ EOF
 
   $SUDO nginx -t
   $SUDO systemctl reload nginx
-  echo "Verify: curl https://$DOMAIN/api/convert"
+  echo "Verify: curl https://$DOMAIN:$PUBLIC_PORT/api/convert"
 else
-  echo "Verify: curl http://<server-ip>/api/convert"
+  echo "Verify: curl http://<server-ip>:$PUBLIC_PORT/api/convert"
 fi

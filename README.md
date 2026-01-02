@@ -16,6 +16,7 @@ Copy-Item .\static\* .\dist\static\ -Recurse -Force
 ```
 
 打开 `http://127.0.0.1:7625/`。
+对外浏览器访问端口默认 `9637`（Nginx 监听）。
 
 ## 一键部署（GitHub，一条命令）
 
@@ -31,16 +32,18 @@ Copy-Item .\static\* .\dist\static\ -Recurse -Force
 ### HTTP（无域名）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/deploy.sh \
-  | env REPO=OWNER/REPO ENABLE_TLS=0 AUTO_REMOVE_DEFAULT=1 bash
+curl -fsSL https://raw.githubusercontent.com/MADAO-NW/V2CLASH/main/deploy.sh \
+  | env REPO=MADAO-NW/V2CLASH ENABLE_TLS=0 AUTO_REMOVE_DEFAULT=1 bash
 ```
 
 ### HTTPS（有域名）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/deploy.sh \
-  | env REPO=OWNER/REPO DOMAIN=yourdomain.com ENABLE_TLS=1 AUTO_REMOVE_DEFAULT=1 bash
+curl -fsSL https://raw.githubusercontent.com/MADAO-NW/V2CLASH/main/deploy.sh \
+  | env REPO=MADAO-NW/V2CLASH DOMAIN=yourdomain.com ENABLE_TLS=1 AUTO_REMOVE_DEFAULT=1 bash
 ```
+
+访问示例：`http://<server-ip>:9637/` 或 `https://yourdomain.com:9637/`。
 
 常用可选参数（环境变量）：
 
@@ -49,8 +52,23 @@ curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/deploy.sh \
 - `APP_DIR`：默认 `/opt/link2clash`。
 - `APP_USER`：默认 `www-data`。
 - `STATIC_REF`：静态文件来源的 git ref，默认自动使用 `main` 或 `VERSION`。
+- `PUBLIC_PORT`：对外访问端口，默认 `9637`。
 
 脚本默认适配 Ubuntu/Debian（使用 `apt-get`）。
+
+## 一键移除服务（GitHub）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MADAO-NW/V2CLASH/main/uninstall.sh \
+  | env REMOVE_NGINX_CONF=1 REMOVE_PACKAGES=0 bash
+```
+
+可选参数：
+
+- `REMOVE_NGINX_CONF`：是否删除 Nginx 站点配置，默认 `1`。
+- `REMOVE_PACKAGES`：是否卸载 Nginx/Certbot，默认 `0`。
+- `APP_DIR`：默认 `/opt/link2clash`。
+- `SERVICE_NAME`：默认 `link2clash`。
 
 ## 部署（Windows 编译 + Linux VPS）
 
@@ -132,7 +150,7 @@ sudo tee /etc/nginx/sites-available/link2clash.conf > /dev/null <<'EOF'
 limit_req_zone $binary_remote_addr zone=api_rate:10m rate=30r/m;
 
 server {
-    listen 80 default_server;
+    listen 9637 default_server;
     server_name _;
 
     client_max_body_size 256k;
@@ -173,12 +191,12 @@ sudo systemctl reload nginx
 ### 6) 验证
 
 ```bash
-curl -X POST http://127.0.0.1:7625/api/convert \
+curl -X POST http://127.0.0.1:9637/api/convert \
   -H "Content-Type: application/json" \
   -d '{"input":"vless://uuid@host:443?encryption=none#node1"}'
 ```
 
-访问 `http://your_vps_ip/`。
+访问 `http://your_vps_ip:9637/`。
 
 ## API
 
