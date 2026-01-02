@@ -7,6 +7,8 @@ const errorsBox = document.getElementById("errors");
 const errorList = document.getElementById("error-list");
 const statusEl = document.getElementById("status");
 const copyButtons = document.querySelectorAll("[data-copy]");
+const yamlCopyBtn = document.getElementById("copy-yaml");
+const yamlSample = document.getElementById("yaml-sample");
 
 let statusTimer;
 
@@ -38,7 +40,7 @@ function renderErrors(errors) {
 
 function setLoading(isLoading) {
   convertBtn.disabled = isLoading;
-  convertBtn.textContent = isLoading ? "Converting..." : "Convert";
+  convertBtn.textContent = isLoading ? "转换中..." : "转换";
 }
 
 async function convert() {
@@ -52,7 +54,7 @@ async function convert() {
     });
 
     if (!response.ok) {
-      let message = "Request failed.";
+      let message = "请求失败。";
       try {
         const data = await response.json();
         if (data && data.error) {
@@ -70,9 +72,9 @@ async function convert() {
     proxiesEl.value = data.proxy_lines || "";
     groupsEl.value = data.group_lines || "";
     renderErrors(data.errors || []);
-    showStatus("Conversion done.");
+    showStatus("转换完成。");
   } catch (err) {
-    showStatus("Network error.");
+    showStatus("网络错误。");
   } finally {
     setLoading(false);
   }
@@ -83,17 +85,17 @@ function clearAll() {
   proxiesEl.value = "";
   groupsEl.value = "";
   renderErrors([]);
-  showStatus("Cleared.");
+  showStatus("已清空。");
 }
 
 async function copyText(text, label) {
   if (!text.trim()) {
-    showStatus("Nothing to copy.");
+    showStatus("暂无可复制内容。");
     return;
   }
   try {
     await navigator.clipboard.writeText(text);
-    showStatus(`Copied ${label}.`);
+    showStatus(`已复制${label}。`);
     return;
   } catch (err) {
     // fallback below
@@ -105,9 +107,9 @@ async function copyText(text, label) {
   temp.select();
   try {
     document.execCommand("copy");
-    showStatus(`Copied ${label}.`);
+    showStatus(`已复制${label}。`);
   } catch (err) {
-    showStatus("Copy failed.");
+    showStatus("复制失败。");
   } finally {
     document.body.removeChild(temp);
   }
@@ -119,9 +121,15 @@ clearBtn.addEventListener("click", clearAll);
 copyButtons.forEach((button) => {
   button.addEventListener("click", () => {
     if (button.dataset.copy === "proxies") {
-      copyText(proxiesEl.value, "proxies");
+      copyText(proxiesEl.value, "节点");
     } else {
-      copyText(groupsEl.value, "groups");
+      copyText(groupsEl.value, "组内引用");
     }
   });
 });
+
+if (yamlCopyBtn && yamlSample) {
+  yamlCopyBtn.addEventListener("click", () => {
+    copyText(yamlSample.textContent || "", "示例");
+  });
+}

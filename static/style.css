@@ -34,6 +34,9 @@ body {
   width: min(1100px, 92vw);
   margin: 40px auto 60px;
   position: relative;
+  min-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
 }
 
 .background::before,
@@ -101,6 +104,7 @@ body {
   box-shadow: var(--shadow);
   border: 1px solid rgba(255, 255, 255, 0.9);
   animation: fadeUp 0.6s ease both;
+  flex: 0 0 auto;
 }
 
 label {
@@ -129,6 +133,61 @@ textarea:focus {
   outline: none;
   border-color: var(--accent-2);
   box-shadow: 0 0 0 3px rgba(43, 108, 255, 0.2);
+}
+
+.hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.guide {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0;
+  flex-wrap: wrap;
+}
+
+.guide-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.guide-body {
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px dashed var(--line);
+  background: #fff7f2;
+}
+
+.guide-body p {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.guide-body pre {
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: #1f1d1b;
+  color: #f6efe8;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+.guide-body code {
+  font-family: inherit;
 }
 
 .actions {
@@ -175,8 +234,8 @@ button.small {
 
 .output-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px;
+  grid-template-columns: 1fr;
+  gap: 18px;
   margin-top: 26px;
 }
 
@@ -185,6 +244,10 @@ button.small {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+}
+
+.output-header.guide-header {
+  margin-bottom: 0;
 }
 
 .output h2 {
@@ -217,10 +280,12 @@ button.small {
 .footer {
   position: relative;
   z-index: 1;
-  margin-top: 18px;
+  margin-top: auto;
+  padding-top: 18px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  text-align: center;
   color: var(--muted);
   font-size: 0.9rem;
   gap: 16px;
@@ -240,6 +305,12 @@ button.small {
 .status.show {
   opacity: 1;
   transform: translateY(0);
+}
+
+.footer-note {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--muted);
 }
 
 @keyframes float {
