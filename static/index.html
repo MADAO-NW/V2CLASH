@@ -1,61 +1,72 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Link2Clash 转换器</title>
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <div class="background">
-      <header class="hero">
-        <h1>Link2Clash</h1>
-        <p>将 VLESS / VMESS 链接转换为 Clash 节点配置，顺序保持一致。</p>
-      </header>
 
-      <main class="panel">
-        <section class="input-section">
-          <label for="input">输入链接</label>
-          <textarea id="input" placeholder="示例：vless://uuid@host:port?encryption=none&#10;vmess://base64payload"></textarea>
-          <p class="hint">支持多条链接，逗号（含中文逗号）、换行可混用，顺序保持一致。</p>
-          <div class="actions">
-            <button id="convert">转换</button>
-            <button id="clear" class="ghost">清空</button>
-          </div>
-        </section>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Link2Clash 转换器</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
 
-        <section class="output-grid">
-          <div class="output">
-            <div class="output-header">
-              <h2>Clash 节点</h2>
-              <button class="ghost small" data-copy="proxies">复制</button>
-            </div>
-            <textarea id="proxies" readonly></textarea>
-          </div>
-          <div class="output">
-            <div class="output-header">
-              <h2>代理组引用</h2>
-              <button class="ghost small" data-copy="groups">复制</button>
-            </div>
-            <textarea id="groups" readonly></textarea>
-          </div>
-        </section>
+<body>
+  <div class="background">
+    <header class="hero">
+      <h1>Link2Clash</h1>
+      <p>将 VLESS / VMESS / SS / Trojan / Hysteria2 链接转换为 Clash 节点配置，顺序保持一致。</p>
+    </header>
 
-        <section class="guide">
-          <div class="output-header guide-header">
-            <h2>使用指导</h2>
-            <button class="ghost small" id="copy-yaml">复制示例</button>
+    <main class="panel">
+      <section class="input-section">
+        <label for="input">输入链接</label>
+        <textarea id="input"
+          placeholder="示例：vless://uuid@host:port&#10;vmess://base64payload&#10;ss://base64@host:port#name&#10;trojan://password@host:port#name&#10;hysteria2://auth@host:port#name"></textarea>
+        <p class="hint">支持多条链接，逗号（含中文逗号）、换行可混用，顺序保持一致。</p>
+        <div class="actions">
+          <button id="convert">转换</button>
+          <button id="clear" class="ghost">清空</button>
+        </div>
+      </section>
+
+      <section class="output-grid">
+        <div class="output">
+          <div class="output-header">
+            <h2>Clash 节点</h2>
+            <button class="ghost small" data-copy="proxies">复制</button>
           </div>
-          <div class="guide-body">
-            <p>将“Clash 节点”填入配置文件的 <strong>proxies</strong>，将“代理组引用”填入 <strong>proxy-groups</strong> 中对应组的 <strong>proxies</strong> 列表。</p>
-            <pre><code class="language-yaml" id="yaml-sample">proxies:
-  - {name: 示例, type: vless, server: 35.14.24.7, port: 99, uuid: 9d9e21-afb9-bd4d320d588f, cipher: none, network: tcp, tls: false, udp: true}
+          <textarea id="proxies" readonly></textarea>
+        </div>
+        <div class="output">
+          <div class="output-header">
+            <h2>代理组引用</h2>
+            <button class="ghost small" data-copy="groups">复制</button>
+          </div>
+          <textarea id="groups" readonly></textarea>
+        </div>
+      </section>
+
+      <section id="guide" class="guide">
+        <div class="output-header guide-header">
+          <h2>使用指导</h2>
+          <button class="ghost small" id="copy-yaml">复制示例</button>
+        </div>
+        <div class="guide-body">
+          <p>将"Clash 节点"填入配置文件的 <strong>proxies</strong>，将"代理组引用"填入 <strong>proxy-groups</strong> 中对应组的
+            <strong>proxies</strong> 列表。
+          </p>
+          <pre><code class="language-yaml" id="yaml-sample">proxies:
+  - {name: 示例-vless, type: vless, server: 35.14.24.7, port: 99, uuid: 9d9e21-afb9-bd4d320d588f, cipher: none, network: tcp, tls: false, udp: true}
+  - {name: 示例-ss, type: ss, server: example.com, port: 443, cipher: aes-128-gcm, password: mypassword, udp: true}
+  - {name: 示例-trojan, type: trojan, server: trojan.example.com, port: 443, password: mypassword, udp: true, sni: trojan.example.com}
+  - {name: 示例-hy2, type: hysteria2, server: hy2.example.com, port: 443, password: mypassword, sni: hy2.example.com}
 
 proxy-groups:
   - name: "GLOBAL"
     type: select
     proxies:
-      - "示例"
+      - "示例-vless"
+      - "示例-ss"
+      - "示例-trojan"
+      - "示例-hy2"
       - "DIRECT"
       - "REJECT"
 
@@ -66,21 +77,22 @@ rules:
   - DOMAIN-SUFFIX,netflix.com,GLOBAL
   - GEOIP,CN,DIRECT
   - MATCH,GLOBAL</code></pre>
-          </div>
-        </section>
+        </div>
+      </section>
 
-        <section id="errors" class="errors hidden">
-          <h3>错误提示</h3>
-          <ul id="error-list"></ul>
-        </section>
-      </main>
+      <section id="errors" class="errors hidden">
+        <h3>错误提示</h3>
+        <ul id="error-list"></ul>
+      </section>
+    </main>
 
-      <footer class="footer">
-        <span class="status" id="status" aria-live="polite"></span>
-        <p class="footer-note">稳住节奏，配置越整理越清晰。</p>
-      </footer>
-    </div>
+    <footer class="footer">
+      <span class="status" id="status" aria-live="polite"></span>
+      <p class="footer-note">稳住节奏，配置越整理越清晰。</p>
+    </footer>
+  </div>
 
-    <script src="app.js"></script>
-  </body>
+  <script src="app.js"></script>
+</body>
+
 </html>

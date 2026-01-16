@@ -1,17 +1,28 @@
 # Link2Clash
 
-最简 VLESS/VMESS -> Clash 转换器。
+最简 VLESS/VMESS/SS/Trojan/Hysteria2 -> Clash 转换器。
+
+## 支持协议
+
+| 协议 | 链接格式 |
+|------|---------|
+| VLESS | `vless://uuid@server:port?encryption=none#name` |
+| VMESS | `vmess://base64payload` |
+| Shadowsocks | `ss://base64(method:password)@server:port#name` |
+| Trojan | `trojan://password@server:port?sni=example.com#name` |
+| Hysteria2 | `hysteria2://auth@server:port?sni=example.com#name` 或 `hy2://...` |
 
 ## 本地开发（Windows）
 
 使用 PowerShell 在 Windows 上构建并运行：
 
 ```powershell
-cd F:\Desktop\v2clash
-New-Item -ItemType Directory -Force dist
-go build -o dist\link2clash.exe
-New-Item -ItemType Directory -Force dist\static
-Copy-Item .\static\* .\dist\static\ -Recurse -Force
+cd V2CLASH
+
+New-Item -ItemType Directory -Force dist &&
+go build -o dist\link2clash.exe &&
+New-Item -ItemType Directory -Force dist\static &&
+Copy-Item .\static\* .\dist\static\ -Recurse -Force &&
 .\dist\link2clash.exe
 ```
 

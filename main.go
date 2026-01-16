@@ -36,16 +36,23 @@ type ConvertResponse struct {
 }
 
 type Proxy struct {
-	Name    string
-	Type    string
-	Server  string
-	Port    int
-	UUID    string
-	AlterID int
-	Cipher  string
-	Network string
-	TLS     bool
-	UDP     bool
+	Name           string
+	Type           string
+	Server         string
+	Port           int
+	UUID           string
+	AlterID        int
+	Cipher         string
+	Network        string
+	TLS            bool
+	UDP            bool
+	Password       string            // SS/Trojan/Hysteria2 specific
+	Plugin         string            // SS obfs plugin
+	PluginOpts     map[string]string // SS plugin options
+	SNI            string            // Trojan/Hysteria2 specific
+	SkipCertVerify bool              // Trojan/Hysteria2 specific
+	Obfs           string            // Hysteria2 obfs type
+	ObfsPassword   string            // Hysteria2 obfs password
 }
 
 func main() {
@@ -115,6 +122,12 @@ func convertHandler(w http.ResponseWriter, r *http.Request) {
 			proxy, err = parseVless(token)
 		case strings.HasPrefix(token, "vmess://"):
 			proxy, err = parseVmess(token)
+		case strings.HasPrefix(token, "ss://"):
+			proxy, err = parseSS(token)
+		case strings.HasPrefix(token, "trojan://"):
+			proxy, err = parseTrojan(token)
+		case strings.HasPrefix(token, "hysteria2://") || strings.HasPrefix(token, "hy2://"):
+			proxy, err = parseHysteria2(token)
 		default:
 			err = fmt.Errorf("unsupported scheme")
 		}
@@ -301,6 +314,323 @@ func parseVmess(raw string) (Proxy, error) {
 	}, nil
 }
 
+func parseSS(raw string) (Proxy, error) {
+	// SS link format: ss://base64(method:password)@server:port?plugin=...#name
+	// Or legacy format: ss://base64(method:password@server:port)#name
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return Proxy{}, fmt.Errorf("invalid ss URL")
+	}
+	if u.Scheme != "ss" {
+		return Proxy{}, fmt.Errorf("invalid ss scheme")
+	}
+
+	var method, password, server string
+	var port int
+
+	// Try SIP002 format first: base64(method:password)@server:port
+	if u.User != nil && u.Host != "" {
+		// SIP002 format
+		userInfo := u.User.Username()
+		decoded, err := decodeBase64Compat(userInfo)
+		if err != nil {
+			return Proxy{}, fmt.Errorf("invalid ss userinfo base64")
+		}
+
+		parts := strings.SplitN(string(decoded), ":", 2)
+		if len(parts) != 2 {
+			return Proxy{}, fmt.Errorf("invalid ss userinfo format")
+		}
+		method = parts[0]
+		password = parts[1]
+
+		server = u.Hostname()
+		portStr := u.Port()
+		if portStr == "" {
+			return Proxy{}, fmt.Errorf("missing port")
+		}
+		port, err = strconv.Atoi(portStr)
+		if err != nil {
+			return Proxy{}, fmt.Errorf("invalid port")
+		}
+	} else {
+		// Legacy format: base64(method:password@server:port)
+		payload := strings.TrimPrefix(raw, "ss://")
+		// Remove fragment if exists
+		if idx := strings.Index(payload, "#"); idx != -1 {
+			payload = payload[:idx]
+		}
+		// Remove query if exists
+		if idx := strings.Index(payload, "?"); idx != -1 {
+			payload = payload[:idx]
+		}
+
+		decoded, err := decodeBase64Compat(payload)
+		if err != nil {
+			return Proxy{}, fmt.Errorf("invalid ss base64")
+		}
+
+		// Format: method:password@server:port
+		atIdx := strings.LastIndex(string(decoded), "@")
+		if atIdx == -1 {
+			return Proxy{}, fmt.Errorf("invalid ss format")
+		}
+
+		userPart := string(decoded)[:atIdx]
+		hostPart := string(decoded)[atIdx+1:]
+
+		parts := strings.SplitN(userPart, ":", 2)
+		if len(parts) != 2 {
+			return Proxy{}, fmt.Errorf("invalid ss method:password")
+		}
+		method = parts[0]
+		password = parts[1]
+
+		colonIdx := strings.LastIndex(hostPart, ":")
+		if colonIdx == -1 {
+			return Proxy{}, fmt.Errorf("invalid ss server:port")
+		}
+		server = hostPart[:colonIdx]
+		port, err = strconv.Atoi(hostPart[colonIdx+1:])
+		if err != nil {
+			return Proxy{}, fmt.Errorf("invalid port")
+		}
+	}
+
+	if server == "" {
+		return Proxy{}, fmt.Errorf("missing server")
+	}
+
+	// Parse name from fragment
+	name := ""
+	if u.Fragment != "" {
+		decoded, err := url.PathUnescape(u.Fragment)
+		if err == nil {
+			name = decoded
+		} else {
+			name = u.Fragment
+		}
+	}
+	if name == "" {
+		name = fmt.Sprintf("ss-%s-%d", server, port)
+	}
+
+	// Parse plugin options (obfs)
+	var plugin string
+	pluginOpts := make(map[string]string)
+
+	q := u.Query()
+	pluginStr := q.Get("plugin")
+	if pluginStr == "" {
+		// Try parsing from RawQuery for non-standard format like plugin=obfs-local;obfs=http;...
+		rawQuery := u.RawQuery
+		if strings.HasPrefix(rawQuery, "plugin=") {
+			pluginStr, _ = url.QueryUnescape(strings.TrimPrefix(rawQuery, "plugin="))
+		}
+	}
+
+	if pluginStr != "" {
+		// Parse plugin string: obfs-local;obfs=http;obfs-host=xxx
+		pluginParts := strings.Split(pluginStr, ";")
+		if len(pluginParts) > 0 {
+			pluginType := pluginParts[0]
+			// Map obfs-local to obfs for Clash
+			if pluginType == "obfs-local" || pluginType == "simple-obfs" {
+				plugin = "obfs"
+			} else {
+				plugin = pluginType
+			}
+
+			for _, part := range pluginParts[1:] {
+				kv := strings.SplitN(part, "=", 2)
+				if len(kv) == 2 {
+					key := kv[0]
+					value := kv[1]
+					// Map obfs-* keys to Clash format
+					switch key {
+					case "obfs":
+						pluginOpts["mode"] = value
+					case "obfs-host":
+						pluginOpts["host"] = value
+					default:
+						pluginOpts[key] = value
+					}
+				}
+			}
+		}
+	}
+
+	return Proxy{
+		Name:       name,
+		Type:       "ss",
+		Server:     server,
+		Port:       port,
+		Cipher:     method,
+		Password:   password,
+		Plugin:     plugin,
+		PluginOpts: pluginOpts,
+		UDP:        true,
+	}, nil
+}
+
+func parseTrojan(raw string) (Proxy, error) {
+	// Trojan link format: trojan://password@server:port?security=tls&type=tcp&sni=example.com#name
+	u, err := url.Parse(raw)
+	if err != nil {
+		return Proxy{}, fmt.Errorf("invalid trojan URL")
+	}
+	if u.Scheme != "trojan" {
+		return Proxy{}, fmt.Errorf("invalid trojan scheme")
+	}
+
+	// Password is in the user info
+	password := ""
+	if u.User != nil {
+		password = u.User.Username()
+	}
+	if password == "" {
+		return Proxy{}, fmt.Errorf("missing password")
+	}
+
+	server := u.Hostname()
+	if server == "" {
+		return Proxy{}, fmt.Errorf("missing server")
+	}
+
+	portStr := u.Port()
+	if portStr == "" {
+		portStr = "443" // Default port for Trojan
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return Proxy{}, fmt.Errorf("invalid port")
+	}
+
+	q := u.Query()
+
+	// Parse SNI
+	sni := q.Get("sni")
+	if sni == "" {
+		sni = q.Get("peer") // Alternative parameter name
+	}
+	if sni == "" {
+		sni = server // Default to server if no SNI specified
+	}
+
+	// Parse skip-cert-verify
+	skipCertVerify := false
+	if allowInsecure := q.Get("allowInsecure"); allowInsecure == "1" || strings.EqualFold(allowInsecure, "true") {
+		skipCertVerify = true
+	}
+
+	// Parse name from fragment
+	name := ""
+	if u.Fragment != "" {
+		decoded, err := url.PathUnescape(u.Fragment)
+		if err == nil {
+			name = decoded
+		} else {
+			name = u.Fragment
+		}
+	}
+	if name == "" {
+		name = fmt.Sprintf("trojan-%s-%d", server, port)
+	}
+
+	return Proxy{
+		Name:           name,
+		Type:           "trojan",
+		Server:         server,
+		Port:           port,
+		Password:       password,
+		SNI:            sni,
+		SkipCertVerify: skipCertVerify,
+		UDP:            true,
+	}, nil
+}
+
+func parseHysteria2(raw string) (Proxy, error) {
+	// Hysteria2 link format: hysteria2://auth@server:port?sni=example.com&obfs=salamander&obfs-password=xxx#name
+	// Also supports: hy2://auth@server:port?...
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return Proxy{}, fmt.Errorf("invalid hysteria2 URL")
+	}
+	if u.Scheme != "hysteria2" && u.Scheme != "hy2" {
+		return Proxy{}, fmt.Errorf("invalid hysteria2 scheme")
+	}
+
+	// Auth/password is in the user info
+	password := ""
+	if u.User != nil {
+		password = u.User.Username()
+	}
+	if password == "" {
+		return Proxy{}, fmt.Errorf("missing auth/password")
+	}
+
+	server := u.Hostname()
+	if server == "" {
+		return Proxy{}, fmt.Errorf("missing server")
+	}
+
+	portStr := u.Port()
+	if portStr == "" {
+		portStr = "443" // Default port
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return Proxy{}, fmt.Errorf("invalid port")
+	}
+
+	q := u.Query()
+
+	// Parse SNI
+	sni := q.Get("sni")
+	if sni == "" {
+		sni = server
+	}
+
+	// Parse skip-cert-verify
+	skipCertVerify := false
+	if insecure := q.Get("insecure"); insecure == "1" || strings.EqualFold(insecure, "true") {
+		skipCertVerify = true
+	}
+
+	// Parse obfs
+	obfs := q.Get("obfs")
+	obfsPassword := q.Get("obfs-password")
+
+	// Parse name from fragment
+	name := ""
+	if u.Fragment != "" {
+		decoded, err := url.PathUnescape(u.Fragment)
+		if err == nil {
+			name = decoded
+		} else {
+			name = u.Fragment
+		}
+	}
+	if name == "" {
+		name = fmt.Sprintf("hysteria2-%s-%d", server, port)
+	}
+
+	return Proxy{
+		Name:           name,
+		Type:           "hysteria2",
+		Server:         server,
+		Port:           port,
+		Password:       password,
+		SNI:            sni,
+		SkipCertVerify: skipCertVerify,
+		Obfs:           obfs,
+		ObfsPassword:   obfsPassword,
+		UDP:            true,
+	}, nil
+}
+
 func decodeBase64Compat(input string) ([]byte, error) {
 	trimmed := strings.TrimSpace(input)
 	padded := padBase64(trimmed)
@@ -345,12 +675,65 @@ func getString(m map[string]interface{}, key string) string {
 }
 
 func formatProxyLine(p Proxy) string {
-	if p.Type == "vmess" {
+	switch p.Type {
+	case "vmess":
 		return fmt.Sprintf("- {name: %s, type: vmess, server: %s, port: %d, uuid: %s, alterId: %d, cipher: %s, network: %s, tls: %t, udp: true}",
 			p.Name, p.Server, p.Port, p.UUID, p.AlterID, p.Cipher, p.Network, p.TLS)
+	case "ss":
+		return formatSSProxyLine(p)
+	case "trojan":
+		return formatTrojanProxyLine(p)
+	case "hysteria2":
+		return formatHysteria2ProxyLine(p)
+	default:
+		return fmt.Sprintf("- {name: %s, type: vless, server: %s, port: %d, uuid: %s, cipher: %s, network: %s, tls: %t, udp: true}",
+			p.Name, p.Server, p.Port, p.UUID, p.Cipher, p.Network, p.TLS)
 	}
-	return fmt.Sprintf("- {name: %s, type: vless, server: %s, port: %d, uuid: %s, cipher: %s, network: %s, tls: %t, udp: true}",
-		p.Name, p.Server, p.Port, p.UUID, p.Cipher, p.Network, p.TLS)
+}
+
+func formatSSProxyLine(p Proxy) string {
+	base := fmt.Sprintf("- {name: %s, type: ss, server: %s, port: %d, cipher: %s, password: %s, udp: true",
+		p.Name, p.Server, p.Port, p.Cipher, p.Password)
+
+	if p.Plugin != "" && len(p.PluginOpts) > 0 {
+		base += fmt.Sprintf(", plugin: %s, plugin-opts: {", p.Plugin)
+		opts := make([]string, 0, len(p.PluginOpts))
+		for k, v := range p.PluginOpts {
+			opts = append(opts, fmt.Sprintf("%s: %s", k, v))
+		}
+		base += strings.Join(opts, ", ") + "}"
+	}
+
+	return base + "}"
+}
+
+func formatTrojanProxyLine(p Proxy) string {
+	base := fmt.Sprintf("- {name: %s, type: trojan, server: %s, port: %d, password: %s, udp: true, sni: %s",
+		p.Name, p.Server, p.Port, p.Password, p.SNI)
+
+	if p.SkipCertVerify {
+		base += ", skip-cert-verify: true"
+	}
+
+	return base + "}"
+}
+
+func formatHysteria2ProxyLine(p Proxy) string {
+	base := fmt.Sprintf("- {name: %s, type: hysteria2, server: %s, port: %d, password: %s, sni: %s",
+		p.Name, p.Server, p.Port, p.Password, p.SNI)
+
+	if p.SkipCertVerify {
+		base += ", skip-cert-verify: true"
+	}
+
+	if p.Obfs != "" {
+		base += fmt.Sprintf(", obfs: %s", p.Obfs)
+		if p.ObfsPassword != "" {
+			base += fmt.Sprintf(", obfs-password: %s", p.ObfsPassword)
+		}
+	}
+
+	return base + "}"
 }
 
 func formatGroupLine(name string) string {

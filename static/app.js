@@ -9,6 +9,10 @@ const statusEl = document.getElementById("status");
 const copyButtons = document.querySelectorAll("[data-copy]");
 const yamlCopyBtn = document.getElementById("copy-yaml");
 const yamlSample = document.getElementById("yaml-sample");
+const guideSection = document.getElementById("guide");
+
+// 保存原始使用指导内容，用于清空时恢复
+const originalYamlContent = yamlSample ? yamlSample.textContent : "";
 
 let statusTimer;
 
@@ -72,6 +76,7 @@ async function convert() {
     proxiesEl.value = data.proxy_lines || "";
     groupsEl.value = data.group_lines || "";
     renderErrors(data.errors || []);
+    updateGuide(data.proxy_lines, data.group_lines);
     showStatus("转换完成。");
   } catch (err) {
     showStatus("网络错误。");
@@ -80,11 +85,60 @@ async function convert() {
   }
 }
 
+function updateGuide(proxyLines, groupLines) {
+  if (!proxyLines || !groupLines) {
+    return;
+  }
+
+  // 为 proxy 行添加缩进（2个空格）
+  const indentedProxies = proxyLines
+    .split('\n')
+    .map(line => '  ' + line)
+    .join('\n');
+
+  // 为 group 行添加缩进（6个空格，对齐 proxies 列表）
+  const indentedGroups = groupLines
+    .split('\n')
+    .map(line => '      ' + line)
+    .join('\n');
+
+  const yamlContent = `proxies:
+${indentedProxies}
+
+proxy-groups:
+  - name: "GLOBAL"
+    type: select
+    proxies:
+${indentedGroups}
+      - "DIRECT"
+      - "REJECT"
+
+rules:
+  - DOMAIN-SUFFIX,google.com,GLOBAL
+  - DOMAIN-SUFFIX,facebook.com,GLOBAL
+  - DOMAIN-SUFFIX,youtube.com,GLOBAL
+  - DOMAIN-SUFFIX,netflix.com,GLOBAL
+  - GEOIP,CN,DIRECT
+  - MATCH,GLOBAL`;
+
+  yamlSample.textContent = yamlContent;
+  // 更新按钮文字为"复制结果"
+  if (yamlCopyBtn) {
+    yamlCopyBtn.textContent = "复制结果";
+  }
+}
+
 function clearAll() {
   inputEl.value = "";
   proxiesEl.value = "";
   groupsEl.value = "";
   renderErrors([]);
+  // 恢复原始使用指导内容
+  yamlSample.textContent = originalYamlContent;
+  // 恢复按钮文字为"复制示例"
+  if (yamlCopyBtn) {
+    yamlCopyBtn.textContent = "复制示例";
+  }
   showStatus("已清空。");
 }
 
